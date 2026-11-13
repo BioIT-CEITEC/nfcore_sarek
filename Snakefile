@@ -37,11 +37,15 @@ wildcard_constraints:
 rule all:
     input:  expand("mapped/{sample}.bam",sample = sample_tab.sample_name),
             expand("mapped/{sample}.bam.bai", sample = sample_tab.sample_name),
-            "qc_reports/all_samples/alignment_DNA_multiqc/multiqc.html"
+            "multiqc/multiqc_report.html"
 
 ##### Modules #####
 
-include: "rules/alignment_DNA.smk"
+include: "rules/nextflow-go-sarek.smk"
+
+# Left over from the alignment_dna workflow this Snakefile was copied from; the rule file
+# is not part of this repository, so sarek rules replace it.
+#include: "rules/alignment_DNA.smk"
 
 ##### BioRoot utilities - prepare reference #####
 module PR:
