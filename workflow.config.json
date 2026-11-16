@@ -4,12 +4,48 @@
     "version": 1.0,
     "label": "nf-core: sarek",
     "type": "variant_calling",
+    "run_parameters": {
+      "cpu": 2,
+      "memory": 2
+    },
     "inputs": "*/{sample}*fastq.gz",
     "outputs": [
-      "mapped/{sample}.bam",
-      "mapped/{sample}.bam.bai",
+      "sarek_output/csv/*",
+      "sarek_output/multiqc/*",
+      "sarek_output/pipeline_info/*",
+      "sarek_output/reports/fastqc/*",
+      "sarek_output/reports/fastp/{sample}/*",
+      "sarek_output/reports/mosdepth/{sample}/*",
       "logs/{sample}/*",
       "qc_reports/*"
+    ],
+    "outputs_optional": [
+      "sarek_output/csv/mapped.csv",
+      "sarek_output/csv/markduplicates_no_table.csv",
+      "sarek_output/csv/markduplicates.csv",
+      "sarek_output/csv/recalibrated.csv",
+      "sarek_output/csv/variantcalled.csv",
+      "sarek_output/preprocessing/mapped/{sample}.sorted.bam",
+      "sarek_output/preprocessing/mapped/{sample}.sorted.bam.bai",
+      "sarek_output/preprocessing/mapped/{sample}.sorted.cram",
+      "sarek_output/preprocessing/mapped/{sample}.sorted.cram.crai",
+      "sarek_output/preprocessing/markduplicates/{sample}.md.bam",
+      "sarek_output/preprocessing/markduplicates/{sample}.md.bam.bai",
+      "sarek_output/preprocessing/markduplicates/{sample}.md.cram",
+      "sarek_output/preprocessing/markduplicates/{sample}.md.cram.crai",
+      "sarek_output/preprocessing/recal_table/{sample}.recal.table",
+      "sarek_output/preprocessing/recalibrated/{sample}.recal.bam",
+      "sarek_output/preprocessing/recalibrated/{sample}.recal.bam.bai",
+      "sarek_output/preprocessing/recalibrated/{sample}.recal.cram",
+      "sarek_output/preprocessing/recalibrated/{sample}.recal.cram.crai",
+      "sarek_output/preprocessing/parabricks/{sample}.bam",
+      "sarek_output/preprocessing/parabricks/{sample}.bam.bai",
+      "sarek_output/preprocessing/parabricks/{sample}.cram",
+      "sarek_output/preprocessing/parabricks/{sample}.cram.crai",
+      "sarek_output/preprocessing/parabricks/{sample}.bqsr.bam",
+      "sarek_output/preprocessing/parabricks/{sample}.bqsr.bam.bai",
+      "sarek_output/preprocessing/parabricks/{sample}.bqsr.cram",
+      "sarek_output/preprocessing/parabricks/{sample}.bqsr.cram.crai",
     ],
     "report_index": "qc_reports/all_samples/alignment_DNA_multiqc/multiqc.html",
     "reports": [
@@ -26,6 +62,18 @@
   ],
   "gui_params": {
     "primary": {
+      "sarek_version": {
+        "label": "Sarek version",
+        "type": "enum",
+        "default": "mapping",
+        "list": {
+          "3.12.0": "3.12.0",
+          "3.11.0": "3.11.0",
+          "3.10.0": "3.10.0",
+          "3.9.0": "3.9.0",
+          "3.8.0": "3.8.0"
+        }
+      },
       "step": {
         "label": "Starting step",
         "type": "enum",
@@ -980,7 +1028,7 @@
       "lane": {
         "label": "Lane ID",
         "type": "string",
-        "default": ""
+        "default": "lane_1"
       }
     }
   }
