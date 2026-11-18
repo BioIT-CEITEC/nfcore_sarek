@@ -11,13 +11,14 @@
     "inputs": "*/{sample}*fastq.gz",
     "outputs": [
       "sarek_output/csv/*",
-      "sarek_output/multiqc/*",
+      "sarek_output/multiqc/multiqc_report.html",
+      "sarek_output/multiqc/multiqc_data/*",
+      "sarek_output/multiqc/multiqc_plots/*",
       "sarek_output/pipeline_info/*",
-      "sarek_output/reports/fastqc/*",
+      "sarek_output/reports/fastqc/{sample}*.html",
+      "sarek_output/reports/fastqc/{sample}*.zip",
       "sarek_output/reports/fastp/{sample}/*",
-      "sarek_output/reports/mosdepth/{sample}/*",
-      "logs/{sample}/*",
-      "qc_reports/*"
+      "logs/{sample}/*"
     ],
     "outputs_optional": [
       "sarek_output/csv/mapped.csv",
@@ -46,10 +47,25 @@
       "sarek_output/preprocessing/parabricks/{sample}.bqsr.bam.bai",
       "sarek_output/preprocessing/parabricks/{sample}.bqsr.cram",
       "sarek_output/preprocessing/parabricks/{sample}.bqsr.cram.crai",
-    ],
+      "sarek_output/reports/mosdepth/{sample}/*",
+      "sarek_output/reports/ngscheckmate/ngscheckmate_all.txt",
+      "sarek_output/reports/ngscheckmate/ngscheckmate_matched.txt",
+      "sarek_output/reports/ngscheckmate/ngscheckmate_output_corr_matrix.txt",
+      "sarek_output/reports/ngscheckmate/vcfs/{sample}.vcf.gz",
+      "sarek_output/reports/markduplicates/{sample}/{sample}.md.cram.metrics",
+      "sarek_output/reports/samtools/{sample}/{sample}.samtools.stats.out",
+      "sarek_output/reports/bcftools/{sample}*.bcftools_stats.txt",
+      "sarek_output/reports/vcftools/{sample}*.summary",
+      "sarek_output/reports/vcftools/{sample}*.TsTv.count",
+      "sarek_output/reports/vcftools/{sample}*.TsTv.qual",
+      "sarek_output/reports/SnpEff/*/*/{sample}.*snpEff.csv",
+      "sarek_output/reports/SnpEff/*/*/{sample}.*snpEff.html",
+      "sarek_output/reports/SnpEff/*/*/{sample}.*snpEff.genes.txt",
+      "sarek_output/reports/EnsemblVEP/*/*/{sample}.*VEP.summary.html"
+      ],
     "report_index": "qc_reports/all_samples/alignment_DNA_multiqc/multiqc.html",
     "reports": [
-      "qc_reports/*",
+      "sarek_output/reports/*",
       "logs/*"
     ]
   },
@@ -65,7 +81,7 @@
       "sarek_version": {
         "label": "Sarek version",
         "type": "enum",
-        "default": "mapping",
+        "default": "3.12.0",
         "list": {
           "3.12.0": "3.12.0",
           "3.11.0": "3.11.0",
@@ -116,6 +132,20 @@
           }
         }
       },
+      "tools": {
+        "label": "Tools to use for contamination removal, duplicate marking, variant calling and/or for annotation.",
+        "type": "string",
+        "default": "",
+        "info": "Multiple tools separated with commas.\n\n**Variant Calling:**\n\nGermline variant calling can currently be performed with the following variant callers:\n- SNPs/Indels: DeepVariant, FreeBayes, GATK HaplotypeCaller, mpileup, Parabricks DeepVariant, Parabricks Haplotypecaller\n- Structural Variants: indexcov, Manta, TIDDIT\n- Copy-number: CNVKit\n\nTumor-only somatic variant calling can currently be performed with the following variant callers:\n- SNPs/Indels: FreeBayes, Lofreq, mpileup, Mutect2, Strelka\n- Structural Variants: Manta, TIDDIT\n- Copy-number: CNVKit, ControlFREEC\n- Microsatellite Instability: MSIsensor2\n\nSomatic variant calling can currently only be performed with the following variant callers:\n- SNPs/Indels: DeepSomatic, FreeBayes, Mutect2, Parabricks DeepSomatic, Parabricks MutectCaller, Strelka2\n- Structural variants: Manta, TIDDIT\n- Copy-Number: ASCAT, CNVKit, Control-FREEC\n- Microsatellite Instability: MSIsensorpro\n\n> **NB** DeepSomatic and Parabricks DeepSomatic support paired short-read WGS and WES only. Parabricks DeepSomatic requires an NVIDIA GPU.\n\n**Annotation:**\n\n- snpEff, VEP, merge (both consecutively), and bcftools annotate (needs `--bcftools_annotation`).\n\n> **NB** As Sarek will use bgzip and tabix to compress and index VCF files annotated, it expects VCF files to be sorted when starting from `--step annotate`."
+      },
+      "skip_tools": {
+        "label": "Disable specified tools.",
+        "type": "string",
+        "default": "",
+        "info": "Multiple tools can be specified, separated by commas.\n\n> **NB** `--skip_tools baserecalibrator_report` is actually just not saving the reports.\n> **NB** `--skip_tools markduplicates_report` does not skip `MarkDuplicates` but prevent the collection of duplicate metrics that slows down performance."
+      }
+    },
+    "detailed": {
       "split_fastq": {
         "label": "Specify how many reads each split of a FastQ file contains. Set 0 to turn off splitting at all.",
         "type": "int",
@@ -146,20 +176,6 @@
         "default": false,
         "info": "With this parameter flags in various tools are set for targeted sequencing data. It is recommended to enable for whole-exome and panel data analysis."
       },
-      "tools": {
-        "label": "Tools to use for contamination removal, duplicate marking, variant calling and/or for annotation.",
-        "type": "string",
-        "default": "",
-        "info": "Multiple tools separated with commas.\n\n**Variant Calling:**\n\nGermline variant calling can currently be performed with the following variant callers:\n- SNPs/Indels: DeepVariant, FreeBayes, GATK HaplotypeCaller, mpileup, Sentieon Haplotyper, Parabricks DeepVariant, Parabricks Haplotypecaller\n- Structural Variants: indexcov, Manta, TIDDIT\n- Copy-number: CNVKit\n\nTumor-only somatic variant calling can currently be performed with the following variant callers:\n- SNPs/Indels: FreeBayes, Lofreq, mpileup, Mutect2, Sentieon TNScope, Strelka\n- Structural Variants: Manta, Sentieon TNScope, TIDDIT\n- Copy-number: CNVKit, ControlFREEC\n- Microsatellite Instability: MSIsensor2\n\nSomatic variant calling can currently only be performed with the following variant callers:\n- SNPs/Indels: DeepSomatic, FreeBayes, Mutect2, Parabricks DeepSomatic, Parabricks MutectCaller, Sentieon TNScope, Strelka2\n- Structural variants: Manta, TIDDIT\n- Copy-Number: ASCAT, CNVKit, Control-FREEC, Sentieon TNScope\n- Microsatellite Instability: MSIsensorpro\n\n> **NB** DeepSomatic and Parabricks DeepSomatic support paired short-read WGS and WES only. Parabricks DeepSomatic requires an NVIDIA GPU.\n\n**Annotation:**\n\n- snpEff, VEP, merge (both consecutively), and bcftools annotate (needs `--bcftools_annotation`).\n\n> **NB** As Sarek will use bgzip and tabix to compress and index VCF files annotated, it expects VCF files to be sorted when starting from `--step annotate`."
-      },
-      "skip_tools": {
-        "label": "Disable specified tools.",
-        "type": "string",
-        "default": "",
-        "info": "Multiple tools can be specified, separated by commas.\n\n> **NB** `--skip_tools baserecalibrator_report` is actually just not saving the reports.\n> **NB** `--skip_tools markduplicates_report` does not skip `MarkDuplicates` but prevent the collection of duplicate metrics that slows down performance."
-      }
-    },
-    "detailed": {
       "trim_fastq": {
         "label": "Run FastP for read trimming",
         "type": "bool",
@@ -263,7 +279,7 @@
         "label": "Tag detailing where UMIs are present inside the bam/cram file (e.g. RX).",
         "type": "string",
         "default": "",
-        "info": "If UMIs are already present in the cram/bam file, this details the tag which will be used in GATK MarkDuplicates and Sentieon dedup. This should be set to RX if restarting from bam files where the UMIs have been extracted by the umi_in_read_header or umi_length options. Note this is not compatible with MarkDuplicates Spark."
+        "info": "If UMIs are already present in the cram/bam file, this details the tag which will be used in GATK MarkDuplicates. This should be set to RX if restarting from bam files where the UMIs have been extracted by the umi_in_read_header or umi_length options. Note this is not compatible with MarkDuplicates Spark."
       },
       "bbsplit_fasta_list": {
         "label": "Path to comma-separated file containing a list of reference genomes to filter reads against with BBSplit. You have to also explicitly set `--tools bbsplit` if you want to use BBSplit.",
@@ -289,7 +305,6 @@
           "bwa-mem": "bwa-mem",
           "bwa-mem2": "bwa-mem2",
           "dragmap": "dragmap",
-          "sentieon-bwamem": "sentieon-bwamem",
           "parabricks": "parabricks"
         },
         "default": "bwa-mem",
@@ -316,12 +331,6 @@
         "label": "Markduplicates pixel distance",
         "type": "int",
         "info": "Pixel distance for GATK MarkDuplicates. Applies to both GATK MarkDuplicates and MarkDuplicatesSpark (`--use_gatk_spark markduplicates`)."
-      },
-      "sentieon_consensus": {
-        "label": "Generate consensus reads with Sentieon dedup rather than choosing one best read.",
-        "type": "bool",
-        "default": false,
-        "info": "If set, the Sentieon dedup output will combine duplicate reads into single consensus read. This is only relevant if `--tools` contains `sentieon_dedup`."
       },
       "mosdepth_fast_mode": {
         "label": "Enable Mosdepth fast mode for whole-genome coverage calculations.",
@@ -468,24 +477,6 @@
         "type": "string",
         "default": "",
         "info": "If none provided, will be generated automatically from the PON bgzipped VCF file."
-      },
-      "sentieon_haplotyper_emit_mode": {
-        "label": "Option for selecting output and emit-mode of Sentieon's Haplotyper.",
-        "type": "string",
-        "default": "variant",
-        "info": "The option `--sentieon_haplotyper_emit_mode` can be set to the same string values as the Haplotyper's `--emit_mode`. To output both a vcf and a gvcf, specify both a vcf-option (currently, `all`, `confident` and `variant`) and `gvcf`. For example, to obtain a vcf and gvcf one could set `--sentieon_haplotyper_emit_mode` to `variant, gvcf`."
-      },
-      "sentieon_dnascope_emit_mode": {
-        "label": "Option for selecting output and emit-mode of Sentieon's Dnascope.",
-        "type": "string",
-        "default": "variant",
-        "info": "The option `--sentieon_dnascope_emit_mode` can be set to the same string values as the Dnascope's `--emit_mode`. To output both a vcf and a gvcf, specify both a vcf-option (currently, `all`, `confident` and `variant`) and `gvcf`. For example, to obtain a vcf and gvcf one could set `--sentieon_dnascope_emit_mode` to `variant, gvcf`."
-      },
-      "sentieon_dnascope_pcr_indel_model": {
-        "label": "Option for selecting the PCR indel model used by Sentieon Dnascope.",
-        "type": "string",
-        "default": "CONSERVATIVE",
-        "info": "PCR indel model used to weed out false positive indels more or less aggressively. The possible MODELs are: NONE (used for PCR free samples), and HOSTILE, AGGRESSIVE and CONSERVATIVE, in order of decreasing aggressiveness. The default value is CONSERVATIVE."
       },
       "gatk_pcr_indel_model": {
         "label": "Gatk pcr indel model",
@@ -935,12 +926,6 @@
         "type": "string",
         "default": "",
         "info": "If you use AWS iGenomes, this has already been set for you appropriately."
-      },
-      "sentieon_dnascope_model": {
-        "label": "Machine learning model for Sentieon Dnascope.",
-        "type": "string",
-        "default": "",
-        "info": "It is recommended to use DNAscope with a machine learning model to perform variant calling with higher accuracy by improving the candidate detection and filtering. Sentieon can provide you with a model trained using a subset of the data from the GiAB truth-set found in https://github.com/genome-in-a-bottle. In addition, Sentieon can assist you in the creation of models using your own data, which will calibrate the specifics of your sequencing and bio-informatics processing.\n\nIf you use AWS iGenomes, this has already been set for you appropriately."
       },
       "snpeff_cache": {
         "label": "Path to snpEff cache.",

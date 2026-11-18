@@ -4,23 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A **BioRoots Snakemake workflow that wraps `nf-core/sarek`**. Snakemake handles samples, references,
+A **Snakemake workflow that wraps `nf-core/sarek`**. Snakemake handles samples, references,
 and output collection; the heavy lifting is delegated to the Nextflow pipeline, launched with
 [nextflow-go](https://github.com/CERIT-SC/nextflow-go) on the CERIT-SC Kubernetes cluster. The wrapper
-exists so sarek can be offered through the BioRoots GUI/platform like every other workflow in the family.
+exists so sarek can be offered through SeqUIa.
 
 **Current state: scaffold, not a working pipeline.**
 
-- [Snakefile](Snakefile) is a verbatim copy of `../alignment_dna/Snakefile` (only the MultiQC target path differs),
-  so `rule all` still asks for alignment outputs (`mapped/{sample}.bam`, `mapped/{sample}.bam.bai`, `multiqc/multiqc_report.html`).
-- Its `include` of `rules/alignment_DNA.smk` (**no such file in this repo**) is commented out; the sarek rule file is included instead.
-- [rules/nextflow-go-sarek.smk](rules/nextflow-go-sarek.smk) has `prepare_samplesheet`, which renders `config["samples"]`
-  into sarek's `--input` CSV (see "Building the samplesheet" below). It is not in `rule all` yet — build it with
-  `snakemake ... samplesheet.csv`.
-- `wrappers/` is empty.
-
-The work is to replace the copied DNA-alignment rule set with sarek rules: build a sarek samplesheet from
-`config["samples"]`, invoke `nextflow-go` per pipeline step, and wire sarek's `--outdir` back into Snakemake outputs.
+- [Snakefile](Snakefile) control the creation of input files needed for sarek.
+- It parses the config.json file to retrieve info about sample and create `samplesheet.csv`.
+- It create a `params.yaml` file using info extracted from the config.json file.
+- [rules/nextflow-go-sarek.smk](rules/nextflow-go-sarek.smk) control the sarek run using `nextflow-go`.
+- `wrappers/` contains the `script.py` and `env.yaml` that control the proper invocation of `nextflow-go`.
 
 ## Commands
 
@@ -42,8 +37,10 @@ Manual sarek runs (the reference implementation for what the rules must do) are 
 
 ## Two config layers — understand this before touching anything
 
-**[workflow.config.json](workflow.config.json) is the GUI schema. Snakemake never reads it.** It is consumed by
-the BioRoots GUI/launcher, which renders a form from it and emits the runtime `config.json`.
+**[workflow.config.json](workflow.config.json) is the GUI schema.** It is consumed by
+the BioRoots GUI/launcher, which renders a form from it and emits the runtime `config.json`. The Snakefile also
+reads it — not for values, but as the list of sarek flags and their defaults when it renders `params.yaml`
+(see "Building params.yaml").
 
 - `workflow_description` — `inputs` glob, `outputs` patterns (`{sample}` templates), `report_index`, `reports`.
   These are a **contract with the platform**: the collector and the report link look for exactly these paths, so
@@ -133,6 +130,23 @@ order are sarek's own — no others are written:
   (rows without `fastq_2` die in `samplesheet_to_channel`), spaces in `patient`/`sample`, duplicate
   patient/sample/status/lane rows, one sample id under two patients.
 - Written with LF endings — a `\r` would land inside the last path when Nextflow parses it on Linux.
+
+## Building params.yaml (`write_params`)
+
+Renders `params.yaml` for nextflow-go's `-params-file`, alongside `samplesheet.csv` (both written at parse time, not
+by a rule). `gui_params.primary` + `.detailed` are the parameter list and the source of defaults; the task
+`config.json` value wins over the schema default whenever it is present and non-empty, and a param with neither is
+**left out entirely** so sarek's own default applies. `gui_params.samples` is not here — those are samplesheet columns.
+
+- Skipped by name (`NOT_SAREK_PARAMS`): `sarek_version` (pins the revision for the rule), `organism`/`assembly`
+  (reference choice; sarek gets `--genome`/fasta paths in the rule), `lib_ROI` (a panel *name*, turned into the BED
+  below).
+- `lib_ROI` is the one value translated rather than copied: `config["organism_dna_panel"]` (set by `BR.load_organism`)
+  becomes `intervals`, and `wes` is forced true. An explicit `intervals` from the GUI still wins.
+- Types come from the schema `type` field (`bool` → real YAML `true`/`false`, `int` → bare int, everything else a
+  quoted string so paths and commas stay data). Written with LF endings, like the samplesheet.
+- The file is regenerated on every Snakemake invocation, so `-resume` sees a changed `-params-file` whenever a
+  parameter changes — which is what you want.
 
 ## Constraints that will bite
 
