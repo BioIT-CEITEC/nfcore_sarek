@@ -74,88 +74,107 @@ def write_samplesheet(path = SAMPLESHEET_PATH):
 
 write_samplesheet()
 
+##### Prepare missing parameters #####
 
-wildcard_constraints:
-    sample = "|".join(sample_tab.sample_name),
-    read_pair_tag = "(_R.)?"
+config["input"] = os.path.join(WORKDIR,"samplesheet.csv")
+config["output"] = os.path.join(WORKDIR,"sarek_output")
+if not config["use_igenome"]:
+    config["fasta"] = config["organism_fasta"]
+    config["fasta_fai"] = config["organism_fasta"] + ".fai"
+    config["genome"] = ""
+
 
 
 ##### Prepare params.yaml #####
 
 PARAMS_PATH = "params.yaml"
-# The GUI schema doubles as the list of sarek flags and their default values. Relative, like the other
-# files this Snakefile writes and reads; overridable when the launcher runs from elsewhere.
-WORKFLOW_CONFIG_PATH = config.get("workflow_config", "workflow.config.json")
-# .samples is left out: those columns are per-sample and go to the samplesheet instead.
-PARAM_SECTIONS = ["primary", "detailed"]
-# Keys the launcher needs but sarek does not: sarek_version pins the revision for nextflow-go,
-# organism/assembly pick the reference (sarek gets --genome / fasta paths in the rule), and
-# lib_ROI only names a target BED, turned into `intervals` below.
-NOT_SAREK_PARAMS = ["sarek_version", "organism", "assembly", "lib_ROI"]
+# params.yaml comes straight out of the task config.json: the launcher flattens gui_params.primary + .detailed
+# into it, so config already holds every sarek flag, in schema order, in its schema's JSON type. Everything the
+# GUI did not put there has to be named to be left out — config carries the launcher's own bookkeeping and,
+# after BR.load_organism() above, the reference paths on top of the parameters. A key the launcher starts
+# sending later ends up in params.yaml until it is listed below; Nextflow only warns about params no process
+# reads, so the symptom is a cluttered -params-file, not a failed run.
+NOT_SAREK_PARAMS = [
+    # The launcher's bookkeeping; the samples go to samplesheet.csv instead.
+    "task_name", "entity_name", "is_paired", "samples", "sarek_input_prefix",
+    # Reference choice: sarek_version pins the revision for nextflow-go, organism/assembly pick the reference
+    # (sarek gets --genome / fasta paths in the rule), lib_ROI only names a target BED, turned into `intervals` below.
+    "sarek_version", "organism", "assembly", "lib_ROI",
+    # Cluster plumbing, and the credentials: a stray key here just shows up quoted in sarek's own pipeline report.
+    "globalResources", "globalTmpdPath", "globalTaskPath", "computing_type",
+    "Filesender_credential_file", "S3_credential_file", "aws_id", "aws_key",
+    # BioRoots' own lookups; the organism_* reference paths are caught by prefix below.
+    "reference", "reference_dir", "species_name", "species", "release", "material", "tooldir",
+]
+# BR.load_organism()'s reference paths. The rule passes on to sarek the few it actually asked for, explicitly.
+NOT_SAREK_PREFIXES = ("organism_",)
 
-with open(WORKFLOW_CONFIG_PATH) as workflow_config:
-    GUI_PARAMS = json.load(workflow_config)["gui_params"]
+
+def is_sarek_param(key, value):
+    """False for the keys config carries on top of the sarek flags, listed above."""
+    if key in NOT_SAREK_PARAMS or key.startswith(NOT_SAREK_PREFIXES):
+        return False
+    return not isinstance(value, (dict, list, tuple))  # nothing nested is a sarek flag
 
 
-def param_value(key, spec):
-    """One param's value: the task config.json value when the GUI set it, else the schema default."""
-    value = config[key] if key in config and config[key] is not None else spec.get("default")
+def param_value(value):
+    """One param's value as config gives it: only empties need weeding, the GUI sends the schema's JSON type."""
     if value is None or (isinstance(value, str) and value.strip() == ""):
-        return None  # neither chosen nor defaulted: leave it out and let sarek use its own value
-    # Entries without a declared type keep the JSON type the value already has ("str" falls through below).
-    param_type = spec.get("type") or type(value).__name__
-    if param_type == "bool":  # the GUI may send "true"/"1", nextflow wants a real bool
-        return str(value).strip().lower() in ["true", "1", "yes", "on"]
-    if param_type == "int":
-        return int(float(value))
+        return None  # unset: leave it out and let sarek use its own value
+    if isinstance(value, bool):  # before int, bool is an int in python
+        return value
+    if isinstance(value, (int, float)):
+        return value
     return str(value).strip()
 
 
 def sarek_params():
-    """{param: value} for -params-file; keys keep the sarek flag names workflow.config.json gives them."""
+    """{param: value} for -params-file; keys, order and types are config's, which are the GUI schema's."""
     params = {}
-    for section in PARAM_SECTIONS:
-        for key, spec in GUI_PARAMS[section].items():
-            if key in NOT_SAREK_PARAMS:
-                continue
-            value = param_value(key, spec)
-            if value is not None:
-                params[key] = value
+    for key, value in config.items():
+        if not is_sarek_param(key, value):
+            continue
+        value = param_value(value)
+        if value is not None:
+            params[key] = value
 
     # lib_ROI is the GUI's name for a panel/WES BED; sarek wants the BED itself in `intervals`, plus
     # `wes` so the targeted sequencing flags are set. Only BioRoots knows the path (load_organism above).
+    # Check the value, not just the key: load_organism builds a DNA_ROI/<lib_ROI>/ path for any lib_ROI, and
+    # "wgs" names no panel — pointing sarek at that BED would run a WGS sample as a targeted one.
     dna_panel = config.get("organism_dna_panel")
-    if dna_panel:
+    if dna_panel and config.get("lib_ROI") not in (None, "", "wgs"):
         params.setdefault("intervals", dna_panel)  # an explicit `intervals` from the GUI wins
         params["wes"] = True
     return params
 
 
 def yaml_value(value):
-    """One YAML scalar: bools and ints bare, everything else quoted so paths and commas stay data."""
+    """One YAML scalar: bools and numbers bare, everything else quoted so paths and commas stay data."""
     if isinstance(value, bool):  # before int, bool is an int in python
         return "true" if value else "false"
-    if isinstance(value, int):
+    if isinstance(value, (int, float)):
         return str(value)
     return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 def write_params(path = PARAMS_PATH):
-    """Renders sarek_params() into the YAML handed to nextflow-go's -params-file."""
+    """Renders sarek_params() into the YAML handed to nextflow-go's -params-file, in config's own order."""
     params = sarek_params()
     # newline="" keeps LF endings, as in the samplesheet: the file is read on the cluster.
     with open(path, "w", newline="") as params_file:
-        params_file.write("# Generated by the Snakefile from workflow.config.json + config.json, do not edit.\n")
-        for section in PARAM_SECTIONS:
-            keys = [key for key in GUI_PARAMS[section] if key in params]
-            if keys:
-                params_file.write("\n# " + section + "\n")
-                params_file.writelines(key + ": " + yaml_value(params[key]) + "\n" for key in keys)
+        params_file.write("# Generated by the Snakefile from config.json, do not edit.\n")
+        params_file.writelines(key + ": " + yaml_value(params[key]) + "\n" for key in params)
     print("wrote " + path + " with " + str(len(params)) + " parameters")
 
 
 write_params()
 
+##### Wildcards #####
+
+wildcard_constraints:
+    sample = "|".join(sample_tab.sample_name),
+    read_pair_tag = "(_R.)?"
 
 ##### Target rules #####
 rule all:

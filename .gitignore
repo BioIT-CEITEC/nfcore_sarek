@@ -1,3 +1,6 @@
 shell_scripts/
 config_exemple_BR.json
 config_exemple.json
+config_exemple_test.json
+params_test.yaml
+

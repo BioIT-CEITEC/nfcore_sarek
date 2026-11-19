@@ -38,9 +38,10 @@ Manual sarek runs (the reference implementation for what the rules must do) are 
 ## Two config layers — understand this before touching anything
 
 **[workflow.config.json](workflow.config.json) is the GUI schema.** It is consumed by
-the BioRoots GUI/launcher, which renders a form from it and emits the runtime `config.json`. The Snakefile also
-reads it — not for values, but as the list of sarek flags and their defaults when it renders `params.yaml`
-(see "Building params.yaml").
+the BioRoots GUI/launcher, which renders a form from it and emits the runtime `config.json`. The Snakefile does
+**not** read it: `params.yaml` is built from `config.json` alone (see "Building params.yaml"), and that already
+carries every key `gui_params.primary`/`.detailed` declares, in schema order and with the types it declares.
+So this file controls what the GUI offers; the Snakefile mirrors whatever the launcher emitted.
 
 - `workflow_description` — `inputs` glob, `outputs` patterns (`{sample}` templates), `report_index`, `reports`.
   These are a **contract with the platform**: the collector and the report link look for exactly these paths, so
@@ -134,17 +135,26 @@ order are sarek's own — no others are written:
 ## Building params.yaml (`write_params`)
 
 Renders `params.yaml` for nextflow-go's `-params-file`, alongside `samplesheet.csv` (both written at parse time, not
-by a rule). `gui_params.primary` + `.detailed` are the parameter list and the source of defaults; the task
-`config.json` value wins over the schema default whenever it is present and non-empty, and a param with neither is
-**left out entirely** so sarek's own default applies. `gui_params.samples` is not here — those are samplesheet columns.
+by a rule). **The task `config.json` *is* the parameter list**: `sarek_params()` walks `config` in its own key order
+— which is `gui_params.primary` then `.detailed`, since the launcher flattens them in that order — and drops whatever
+is not a sarek flag. A param that is empty or absent from `config.json` is **left out entirely** so sarek's own
+default applies; there is no schema default behind it any more.
 
-- Skipped by name (`NOT_SAREK_PARAMS`): `sarek_version` (pins the revision for the rule), `organism`/`assembly`
-  (reference choice; sarek gets `--genome`/fasta paths in the rule), `lib_ROI` (a panel *name*, turned into the BED
-  below).
-- `lib_ROI` is the one value translated rather than copied: `config["organism_dna_panel"]` (set by `BR.load_organism`)
-  becomes `intervals`, and `wes` is forced true. An explicit `intervals` from the GUI still wins.
-- Types come from the schema `type` field (`bool` → real YAML `true`/`false`, `int` → bare int, everything else a
-  quoted string so paths and commas stay data). Written with LF endings, like the samplesheet.
+- Skipped by name (`NOT_SAREK_PARAMS`): the launcher's bookkeeping (`task_name`, `entity_name`, `is_paired`,
+  `samples` — those are samplesheet columns, `sarek_input_prefix`, `global*`, `computing_type`, the credential files,
+  `aws_*`), the reference choice (`sarek_version` pins the revision for the rule, `organism`/`assembly` become
+  `--genome`/fasta paths there, `lib_ROI` is a panel *name*), and BioRoots' lookup columns. A key the launcher starts
+  sending later lands in `params.yaml` until it is listed here; Nextflow only warns about unread params, so the
+  symptom is a cluttered file, not a failed run.
+- Everything `BR.load_organism()` added under an `organism_` prefix (fasta, panels, indexes) is dropped by
+  `NOT_SAREK_PREFIXES`. The rules pass on to sarek the few of those it actually needs, explicitly.
+- `lib_ROI` is the one value translated rather than copied: `config["organism_dna_panel"]` becomes `intervals` and
+  `wes` is forced true. **Guard on the value, not the key** — `load_organism` builds a `DNA_ROI/<lib_ROI>/` path for
+  any `lib_ROI`, `"wgs"` included, which would run a WGS sample as a targeted one. An explicit `intervals` from the
+  GUI still wins.
+- Types are config's JSON types (`bool` → YAML `true`/`false`, numbers bare, everything else a quoted string so paths
+  and commas stay data). The schema `type` field is not consulted; a wrong-typed value in `config.json` is a GUI/schema
+  bug to fix there. Written with LF endings, like the samplesheet.
 - The file is regenerated on every Snakemake invocation, so `-resume` sees a changed `-params-file` whenever a
   parameter changes — which is what you want.
 
