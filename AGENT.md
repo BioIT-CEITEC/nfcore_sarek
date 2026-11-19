@@ -121,7 +121,7 @@ order are sarek's own — no others are written:
 | `status` | per-sample `status` | **integer** 0 = normal, 1 = tumor, default 0 |
 | `sample` | `sample_name` | `^\S+$`, must belong to exactly one patient |
 | `lane` | per-sample `lane`, default `1` | one entry per sample here; feeds sarek's `{sample}-{lane}` id and the read group |
-| `fastq_1`, `fastq_2` | `{fastq_dir}/{sample_name}{_R1,_R2}.fastq.gz` | `fastq_dir` config key, default `raw_fastq` |
+| `fastq_1`, `fastq_2` | `{WORKDIR}/raw_fastq/{sample_name}{_R1,_R2}.fastq.gz` | `WORKDIR` is the directory holding the Snakefile, i.e. the task directory the launcher staged the FASTQs into |
 
 - FASTQ paths are prefixed with `sarek_input_prefix`, because sarek checks that they **exist from the Nextflow head
   pod**; unset, it falls back to the absolute local workflow dir (only right when the path matches on the cluster).

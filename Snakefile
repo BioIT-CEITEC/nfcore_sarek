@@ -8,6 +8,9 @@ configfile: "config.json"
 
 GLOBAL_REF_PATH = config["globalResources"]
 GLOBAL_TMPD_PATH = config["globalTmpdPath"]
+# The task directory: where this Snakefile lives. workflow.basedir would be where snakemake was
+# started from instead, which is not the same thing when the launcher runs it from elsewhere.
+WORKDIR = os.path.abspath(os.path.dirname(workflow.snakefile))
 
 os.makedirs(GLOBAL_TMPD_PATH, exist_ok=True)
 
@@ -33,7 +36,7 @@ config = BR.load_organism()
 SAMPLESHEET_PATH = "samplesheet.csv"
 # sarek's own column set and order (sarek assets/schema_input.json)
 SAMPLESHEET_COLUMNS = ["patient", "sex", "status", "sample", "lane", "fastq_1", "fastq_2"]
-FASTQ_DIR = config.get("fastq_dir", "raw_fastq")
+FASTQ_DIR = os.path.join(WORKDIR, "raw_fastq")  # the staged FASTQs sit next to this Snakefile
 
 
 def samplesheet_value(row, column):
@@ -43,12 +46,12 @@ def samplesheet_value(row, column):
     if column == "sample":
         return sample_name
 
-    if column in ("fastq_1", "fastq_2"):  # "/" always: the CSV is read on the cluster, not here
+    if column in ("fastq_1", "fastq_2"):  # os.path separators, so render this on Linux: the CSV is read on the cluster
         if column == "fastq_1":
-            return FASTQ_DIR + "/" + sample_name + pair_tag[0] + ".fastq.gz"
+            return os.path.join(FASTQ_DIR, sample_name + pair_tag[0] + ".fastq.gz")
         if len(pair_tag) == 1:  # single end, fastq_2 has to stay empty
             return ""
-        return FASTQ_DIR + "/" + sample_name + pair_tag[1] + ".fastq.gz"
+        return os.path.join(FASTQ_DIR, sample_name + pair_tag[1] + ".fastq.gz")
 
     value = row.get(column)
     if pd.isna(value) or str(value).strip() == "":
@@ -170,4 +173,4 @@ module PR:
     snakefile: github("BioIT-CEITEC/bioroots_utilities", path="prepare_reference.smk",branch="master")
     config: config
 
-use rule * from PR as other_*
+use rule * from PR as prepref_*

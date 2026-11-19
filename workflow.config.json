@@ -103,10 +103,24 @@
           "annotate": "Annotate"
         }
       },
+      "use_igenome":{
+        "label": "Use iGenome",
+        "type": "bool",
+        "default": false
+      },
       "organism": {
         "label": "Organism",
         "type": "enum",
-        "dynamicEnumName": "organism"
+        "dynamicEnumName": "organism",
+        "conditions": {
+          "relevance": {
+            "operand": "equal",
+            "negation": false,
+            "values": {
+              "use_igenome": false
+            }
+          }
+        }
       },
       "assembly": {
         "label": "Genomic Reference Assembly",
@@ -117,6 +131,15 @@
             "param": "organism",
             "type": "value",
             "showGroupLabel": false
+          }
+        },
+        "conditions": {
+          "relevance": {
+            "operand": "equal",
+            "negation": false,
+            "values": {
+              "use_igenome": false
+            }
           }
         }
       },
@@ -129,6 +152,32 @@
             "param": "assembly",
             "type": "value",
             "showGroupLabel": false
+          }
+        },
+        "conditions": {
+          "relevance": {
+            "operand": "equal",
+            "negation": false,
+            "values": {
+              "use_igenome": false
+            }
+          }
+        }
+      },
+      "genome": {
+        "label": "iGenome",
+        "type": "enum",
+        "default": "GATK.GRCh38",
+        "list": {
+          "GATK.GRCh38": "GATK.GRCh38"
+        },
+        "conditions": {
+          "relevance": {
+            "operand": "equal",
+            "negation": false,
+            "values": {
+              "use_igenome": true
+            }
           }
         }
       },
@@ -267,12 +316,14 @@
       },
       "umi_length": {
         "label": "Length of the UMI(s) in the read.",
-        "type": "int",
+        "type": "string",
+        "default": "",
         "info": "If UMIs are being extracted using fastp, specify the length of the UMI here. This will be used to extract UMIs from reads and store them in the RX tag."
       },
       "umi_base_skip": {
         "label": "Number of bases to skip after the UMI(s) in the read when extracting with fastp.",
-        "type": "int",
+        "type": "string",
+        "default": "",
         "info": "If UMIs are being extracted using fastp, specify the number of bases to skip after the UMI here. This will trim some bases after the UMI."
       },
       "umi_tag": {
@@ -329,7 +380,8 @@
       },
       "markduplicates_pixel_distance": {
         "label": "Markduplicates pixel distance",
-        "type": "int",
+        "type": "string",
+        "default": "",
         "info": "Pixel distance for GATK MarkDuplicates. Applies to both GATK MarkDuplicates and MarkDuplicatesSpark (`--use_gatk_spark markduplicates`)."
       },
       "mosdepth_fast_mode": {
@@ -365,11 +417,13 @@
       "ascat_ploidy": {
         "label": "Overwrite ASCAT ploidy.",
         "type": "string",
+        "default": "",
         "info": "ASCAT: optional argument to override ASCAT optimization and supply psi parameter (expert parameter, do not adapt unless you know what you are doing). See [here](https://raw.githubusercontent.com/VanLoo-lab/ascat/master/man/ASCAT-manual.pdf)"
       },
       "ascat_purity": {
         "label": "Overwrite ASCAT purity.",
         "type": "string",
+        "default": "",
         "info": "Overwrites ASCAT's `rho_manual` parameter. Expert use only, see [here](https://raw.githubusercontent.com/VanLoo-lab/ascat/master/man/ASCAT-manual.pdf) for details.\nRequires that `--ascat_ploidy` is set."
       },
       "ascat_penalty": {
@@ -423,6 +477,7 @@
       "cf_window": {
         "label": "Overwrite Control-FREEC window size.",
         "type": "string",
+        "default": "",
         "info": "Details, see [ControlFREEC manual](http://boevalab.inf.ethz.ch/FREEC/tutorial.html)."
       },
       "cnvkit_reference": {
